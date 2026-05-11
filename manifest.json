@@ -1,0 +1,14 @@
+{
+  "name": "Tea Timer",
+  "short_name": "Tea Timer",
+  "description": "A beautiful countdown timer for brewing the perfect cup of tea.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1208",
+  "theme_color": "#1a1208",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

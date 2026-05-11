@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tea Timer">
+  <meta name="theme-color" content="#1a1208">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+  <title>Tea Timer</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1a1208;
+      --surface: #231a0e;
+      --surface2: #2e2211;
+      --gold: #c8922a;
+      --gold-light: #e8b84b;
+      --cream: #f5ead8;
+      --cream-dim: #b8a98a;
+      --green: #4a8c5c;
+      --green-light: #6ab87a;
+      --steam: rgba(200,146,42,0.15);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--cream);
+      font-family: 'DM Sans', sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top, 20px) 24px env(safe-area-inset-bottom, 24px);
+      position: relative;
+    }
+
+    /* Atmospheric background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(200,146,42,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 80% 60% at 20% 100%, rgba(74,140,92,0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app { position: relative; z-index: 1; width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; gap: 0; height: 100%; justify-content: space-between; }
+
+    /* Header */
+    header { text-align: center; padding-top: 8px; }
+    .app-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 15px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.8;
+    }
+
+    /* Timer ring section */
+    .timer-section { display: flex; flex-direction: column; align-items: center; gap: 20px; flex: 1; justify-content: center; }
+
+    .cup-ring { position: relative; width: 220px; height: 220px; }
+
+    .cup-ring svg { width: 100%; height: 100%; }
+
+    .ring-track { stroke: var(--surface2); }
+    .ring-fill {
+      stroke: var(--gold);
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.3s;
+      transform-origin: center;
+      transform: rotate(-90deg);
+    }
+    .ring-fill.low { stroke: #c8552a; }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .time-display {
+      font-family: 'DM Serif Display', serif;
+      font-size: 52px;
+      color: var(--cream);
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+
+    .time-label {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--cream-dim);
+      font-weight: 300;
+    }
+
+    /* Steam animation */
+    .steam-wrap { position: absolute; top: -28px; left: 50%; transform: translateX(-50%); width: 60px; height: 30px; display: flex; gap: 8px; justify-content: center; opacity: 0; transition: opacity 0.5s; }
+    .steam-wrap.show { opacity: 1; }
+    .steam { width: 3px; border-radius: 99px; background: linear-gradient(to top, var(--gold), transparent); animation: steam 2s ease-in-out infinite; }
+    .steam:nth-child(2) { animation-delay: 0.6s; height: 22px; }
+    .steam:nth-child(1) { animation-delay: 0.2s; height: 18px; }
+    .steam:nth-child(3) { animation-delay: 1s; height: 16px; }
+    @keyframes steam { 0%,100% { transform: translateY(0) scaleX(1); opacity: 0.6; } 50% { transform: translateY(-8px) scaleX(1.3); opacity: 0.3; } }
+
+    /* Ready message */
+    .ready-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+      gap: 4px;
+    }
+    .ready-overlay.show { opacity: 1; }
+    .ready-emoji { font-size: 32px; }
+    .ready-text { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--green-light); text-align: center; line-height: 1.3; }
+
+    /* Tea type presets */
+    .presets {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .preset {
+      background: var(--surface);
+      border: 1px solid rgba(200,146,42,0.15);
+      border-radius: 14px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .preset:active { transform: scale(0.96); }
+    .preset.active {
+      background: rgba(200,146,42,0.1);
+      border-color: var(--gold);
+    }
+    .preset-icon { font-size: 20px; }
+    .preset-name { font-size: 12px; font-weight: 500; color: var(--cream); display: block; margin-top: 4px; }
+    .preset-time { font-size: 11px; color: var(--cream-dim); font-weight: 300; }
+
+    /* Custom slider */
+    .custom-row {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .slider-label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-dim); font-weight: 300; }
+    .slider-value { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--gold); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface2);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 3px solid var(--bg);
+      box-shadow: 0 0 0 1px var(--gold);
+    }
+
+    /* Controls */
+    .controls { display: flex; gap: 12px; width: 100%; padding-bottom: 4px; }
+
+    .btn-start {
+      flex: 1;
+      padding: 16px;
+      border-radius: 16px;
+      border: none;
+      background: var(--gold);
+      color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s, transform 0.1s;
+      letter-spacing: 0.02em;
+    }
+    .btn-start:active { transform: scale(0.97); }
+    .btn-start:hover { background: var(--gold-light); }
+    .btn-start.paused { background: var(--surface2); color: var(--cream); border: 1px solid rgba(200,146,42,0.3); }
+
+    .btn-reset {
+      width: 56px; height: 56px;
+      border-radius: 16px;
+      border: 1px solid rgba(200,146,42,0.2);
+      background: var(--surface);
+      color: var(--cream-dim);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-reset:active { transform: scale(0.96); background: var(--surface2); }
+
+    /* Install banner */
+    #install-banner {
+      display: none;
+      position: fixed;
+      bottom: env(safe-area-inset-bottom, 16px);
+      left: 16px; right: 16px;
+      background: var(--surface2);
+      border: 1px solid rgba(200,146,42,0.25);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--cream-dim);
+      z-index: 100;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #install-banner.show { display: flex; }
+    .install-row { display: flex; justify-content: space-between; align-items: center; }
+    .install-title { font-size: 14px; color: var(--cream); font-weight: 500; }
+    .btn-install { padding: 8px 18px; border-radius: 10px; background: var(--gold); color: var(--bg); border: none; font-weight: 500; font-size: 13px; cursor: pointer; }
+    .btn-dismiss { background: none; border: none; color: var(--cream-dim); font-size: 20px; cursor: pointer; padding: 0 4px; }
+
+    /* Pulse ring when ready */
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(106,184,122,0.4); }
+      70% { box-shadow: 0 0 0 20px rgba(106,184,122,0); }
+      100% { box-shadow: 0 0 0 0 rgba(106,184,122,0); }
+    }
+    .cup-ring.done { animation: pulseRing 1.5s ease-out 3; border-radius: 50%; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="app-name">Tea Timer</div>
+  </header>
+
+  <div class="timer-section">
+    <div class="steam-wrap" id="steam">
+      <div class="steam"></div>
+      <div class="steam"></div>
+      <div class="steam"></div>
+    </div>
+
+    <div class="cup-ring" id="cup-ring">
+      <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+        <circle class="ring-track" cx="110" cy="110" r="96" fill="none" stroke-width="10"/>
+        <circle class="ring-fill" id="ring" cx="110" cy="110" r="96" fill="none" stroke-width="10"
+          stroke-dasharray="603.19" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-center">
+        <div class="time-display" id="time-disp">03:00</div>
+        <div class="time-label" id="time-label">ready in</div>
+        <div class="ready-overlay" id="ready-overlay">
+          <div class="ready-emoji">🍵</div>
+          <div class="ready-text">Your tea<br>is ready!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="presets">
+      <div class="preset" onclick="selectPreset(1,'Green','🌿',this)">
+        <div class="preset-icon">🌿</div>
+        <span class="preset-name">Green</span>
+        <span class="preset-time">1 min</span>
+      </div>
+      <div class="preset active" onclick="selectPreset(3,'Black','🍂',this)">
+        <div class="preset-icon">🍂</div>
+        <span class="preset-name">Black</span>
+        <span class="preset-time">3 min</span>
+      </div>
+      <div class="preset" onclick="selectPreset(5,'Herbal','🌸',this)">
+        <div class="preset-icon">🌸</div>
+        <span class="preset-name">Herbal</span>
+        <span class="preset-time">5 min</span>
+      </div>
+    </div>
+
+    <div class="custom-row">
+      <div class="slider-header">
+        <span class="slider-label">Custom time</span>
+        <span class="slider-value" id="slider-val">3 min</span>
+      </div>
+      <input type="range" id="slider" min="1" max="15" value="3" step="1" oninput="onSlider(this.value)">
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-start" id="start-btn" onclick="toggleTimer()">▶ Start</button>
+    <button class="btn-reset" onclick="resetTimer()" aria-label="Reset">↺</button>
+  </div>
+</div>
+
+<div id="install-banner">
+  <div class="install-row">
+    <span class="install-title">Add to Home Screen</span>
+    <button class="btn-dismiss" onclick="dismissInstall()" aria-label="Dismiss">×</button>
+  </div>
+  <span>Install Tea Timer for quick access and background alerts.</span>
+  <button class="btn-install" id="install-btn" onclick="installApp()">Install</button>
+</div>
+
+<script>
+const CIRC = 2 * Math.PI * 96;
+let totalSecs = 180, remaining = 180, interval = null, running = false;
+let deferredPrompt = null;
+
+const ring = document.getElementById('ring');
+const timeDisp = document.getElementById('time-disp');
+const timeLabel = document.getElementById('time-label');
+const startBtn = document.getElementById('start-btn');
+const readyOverlay = document.getElementById('ready-overlay');
+const steam = document.getElementById('steam');
+const cupRing = document.getElementById('cup-ring');
+const slider = document.getElementById('slider');
+const sliderVal = document.getElementById('slider-val');
+
+ring.style.strokeDasharray = CIRC;
+ring.style.strokeDashoffset = 0;
+
+function fmt(s) {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function setDuration(mins) {
+  totalSecs = mins * 60;
+  remaining = totalSecs;
+  ring.style.transition = 'none';
+  ring.style.strokeDashoffset = 0;
+  ring.classList.remove('low');
+  timeDisp.textContent = fmt(remaining);
+  timeLabel.textContent = 'ready in';
+  readyOverlay.classList.remove('show');
+  steam.classList.remove('show');
+  cupRing.classList.remove('done');
+  startBtn.textContent = '▶ Start';
+  startBtn.classList.remove('paused');
+}
+
+function selectPreset(mins, name, icon, el) {
+  if (running) return;
+  document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  slider.value = mins;
+  sliderVal.textContent = mins + ' min';
+  setDuration(mins);
+}
+
+function onSlider(val) {
+  document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+  sliderVal.textContent = val + ' min';
+  if (!running) setDuration(parseInt(val));
+}
+
+function toggleTimer() {
+  if (remaining === 0) { resetTimer(); return; }
+  if (running) {
+    clearInterval(interval);
+    running = false;
+    startBtn.textContent = '▶ Resume';
+    startBtn.classList.add('paused');
+    steam.classList.remove('show');
+  } else {
+    running = true;
+    startBtn.textContent = '⏸ Pause';
+    startBtn.classList.remove('paused');
+    steam.classList.add('show');
+    interval = setInterval(tick, 1000);
+    requestNotifPermission();
+  }
+}
+
+function tick() {
+  remaining--;
+  const frac = remaining / totalSecs;
+  ring.style.transition = 'stroke-dashoffset 1s linear';
+  ring.style.strokeDashoffset = CIRC * (1 - frac);
+  if (frac < 0.25) ring.classList.add('low');
+  timeDisp.textContent = fmt(remaining);
+  if (remaining === 0) finish();
+}
+
+function finish() {
+  clearInterval(interval); running = false; interval = null;
+  timeDisp.textContent = '00:00';
+  timeLabel.textContent = '';
+  readyOverlay.classList.add('show');
+  steam.classList.add('show');
+  cupRing.classList.add('done');
+  startBtn.textContent = '↺ Again';
+  startBtn.classList.remove('paused');
+  notify();
+  playChime();
+}
+
+function resetTimer() {
+  clearInterval(interval); running = false; interval = null;
+  setDuration(totalSecs / 60);
+}
+
+function notify() {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('Your tea is ready! 🍵', {
+      body: 'Time to enjoy your brew.',
+      icon: 'icon-192.svg',
+      badge: 'icon-192.svg',
+      vibrate: [200, 100, 200]
+    });
+  }
+  if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
+}
+
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.3, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+      osc.start(t); osc.stop(t + 0.7);
+    });
+  } catch(e) {}
+}
+
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// PWA install
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; dismissInstall(); });
+  }
+}
+
+function dismissInstall() {
+  document.getElementById('install-banner').classList.remove('show');
+}
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
